@@ -1,11 +1,15 @@
 {
   "project": "hungdai-flow",
-  "active_sprint": "CapCut Draft Export Module",
-  "assigned_agent": "Claude (Tech Lead)",
-  "status": "WAITING_FOR_SPEC",
-  "latest_milestone": "Nộp CWS v1.0.5 thành công lúc 09:41 ngày 11/09/2026 (ID: dgbaokomnmjhalnlfmgcppkncaajeapia)",
-  "current_task": "Thiết kế kỹ thuật chi tiết cho src/lib/capcutDraft.ts",
-  "locked_files": [],
-  "next_turn": "Antigravity (Viết code & Unit test)",
-  "updated_at": "2026-09-11T10:57:00+07:00"
+  "active_sprint": "SPRINT-02-CAPCUT-DRAFT",
+  "assigned_agent": "Antigravity (Senior Engineer)",
+  "status": "SPEC_APPROVED_READY_TO_BUILD",
+  "latest_milestone": "Claude đã bàn giao đặc tả kỹ thuật specs/01-capcut-draft-spec.md",
+  "current_task": "Chờ anh Hùng cung cấp file Test_Mau mẫu thật từ CapCut Desktop để verify field-by-field, sau đó viết src/lib/capcutDraft.ts",
+  "locked_files": [
+    "src/lib/capcutDraft.ts",
+    "src/lib/capcutDraft.types.ts",
+    "src/lib/capcutDraft.test.ts"
+  ],
+  "next_turn": "Anh Hùng (Lấy 2 file mẫu CapCut Test_Mau)",
+  "updated_at": "2026-09-11T11:03:00+07:00"
 }
