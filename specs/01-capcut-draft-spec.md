@@ -89,32 +89,40 @@ export interface CapCutDraftInput {
 
 ## 2. Thuật toán dựng Timeline (`draft_content.json`)
 
-### 2.1. Quy tắc tính thời gian tuyến tính
+### 2.1. Quy tắc tính thời gian tuyến tính (XÁC NHẬN THỰC NGHIỆM TỪ DỰ ÁN THẬT 0831)
 
-Gọi:
-- `clip[i].durationUs` = thời lượng đã trim của clip thứ i
-- `T[i]` = thời lượng transition đứng *ngay sau* clip i (0 nếu không có)
+Từ phân tích file `0831/draft_content.json` trên máy thật (2 clips + transition `is_overlap: true` + 1 audio track):
+- Clip 0: start = 0, duration = 35,133,333 µs
+- Clip 1: start = 35,133,333 µs, duration = 29,700,000 µs
+- Tổng duration = 64,833,333 µs (đúng bằng $35,133,333 + 29,700,000$)
 
-**Trường hợp KHÔNG có transition** (chuỗi nối tiếp thuần):
-```text
-start[0] = 0
-start[i] = start[i-1] + clip[i-1].durationUs   (i >= 1)
-totalDuration = Σ clip[i].durationUs
-```
+**KẾT LUẬN CỐT LÕI:**
+1. Trong CapCut Desktop, các segment trên Video Track được xếp **nối tiếp liên tục (contiguous)**:
+   ```text
+   start[0] = 0
+   start[i] = start[i-1] + clip[i-1].durationUs   (với mọi i >= 1)
+   totalDuration = Σ clip[i].durationUs
+   ```
+2. **Transition KHÔNG làm co ngắn timeline hay trừ bớt start[i]**:
+   - Transition được khai báo trong `materials.transitions` với `is_overlap: true`.
+   - UUID của transition được đưa vào `extra_material_refs` của Segment đứng TRƯỚC (Segment $i-1$).
+   - CapCut tự động render hiệu ứng chuyển cảnh lấn sang 2 đầu clip mà không làm dịch chuyển timecode của segment sau.
 
-**Trường hợp CÓ transition:**
-```text
-start[0] = 0
-start[i] = start[i-1] + clip[i-1].durationUs - T[i-1]   (i >= 1, T[i-1] là transition sau clip i-1)
-totalDuration = Σ clip[i].durationUs - Σ T[i]  (với mọi transition tồn tại)
-```
+### 2.2. Bắt buộc: `source_timerange` KHÔNG ĐƯỢC null
+- Trong CapCut Desktop, nếu `source_timerange: null` thì CapCut sẽ báo lỗi hỏng dự án.
+- Phải luôn truyền:
+  ```json
+  "source_timerange": {
+    "start": 0,
+    "duration": 35133333
+  }
+  ```
 
-### 2.2. Sinh UUID v4 và liên kết `materials` ↔ `tracks[].segments[].material_id`
-- Dùng `crypto.randomUUID().toUpperCase()`.
-- Mỗi video clip $\rightarrow$ 1 object trong `materials.videos[]`.
-- Mỗi transition $\rightarrow$ 1 object trong `materials.transitions[]`.
-- Audio nền $\rightarrow$ 1 object trong `materials.audios[]`.
-- `tracks[0]` (video) chứa các `segments[]` trỏ vào `material_id` tương ứng và `extra_material_refs` trỏ vào transition.
+### 2.3. Bắt buộc: `extra_material_refs` cho mỗi Segment
+Mỗi segment video bắt buộc phải có ít nhất:
+1. `materials.speeds`: `{ id: uuidSpeed, type: "speed", mode: 0, speed: 1.0, curve_speed: null }`
+2. `materials.canvases`: `{ id: uuidCanvas, type: "canvas_color", color: "", blur: 0, image: "", album_image: "", image_id: "", image_name: "", source_platform: 0, team_id: "" }`
+3. Nếu có transition sau clip: UUID của `materials.transitions` được thêm vào `extra_material_refs`.
 
 ---
 
@@ -124,13 +132,13 @@ totalDuration = Σ clip[i].durationUs - Σ T[i]  (với mọi transition tồn t
 {
   "draft_id": "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
   "draft_name": "<projectName>",
-  "draft_fold_path": "<đường dẫn tuyệt đối tới thư mục dự án>",
-  "draft_root_path": "<đường dẫn gốc CapCut Projects>",
+  "draft_fold_path": "D:/capcut/lưu trư tạm thoi/CapCut Drafts/<projectName>",
+  "draft_root_path": "D:\\capcut\\lưu trư tạm thoi\\CapCut Drafts",
   "draft_cover": "",
   "draft_json_file": "draft_content.json",
-  "tm_draft_create": 0,
-  "tm_draft_modified": 0,
-  "draft_duration": 0,
+  "tm_draft_create": 1789088328801047,
+  "tm_draft_modified": 1789088335902705,
+  "tm_duration": 64833333,
   "draft_fps": 30,
   "draft_width": 1920,
   "draft_height": 1080,
@@ -143,14 +151,16 @@ totalDuration = Σ clip[i].durationUs - Σ T[i]  (với mọi transition tồn t
 
 ## 4. Kế hoạch Unit Test (TDD)
 Bao gồm:
-1. **Test Case 1 (Cơ bản):** 3 clip nối tiếp, không transition, không audio. Kiểm tra `duration`, `start` timecode, map material_id, không có audio track.
-2. **Test Case 2 (Nâng cao):** 3 clip + transition hòa tan (dissolve 0.5s) + audio nền có trim. Kiểm tra overlap timecode, `extra_material_refs`, canvas 9:16.
-3. **Edge cases:** ném lỗi khi `clips.length === 0`, hoặc khi `transition` dài hơn độ dài clip.
+1. **Test Case 1 (Cơ bản):** 3 clip nối tiếp, không transition, không audio. Kiểm tra `duration`, `start` timecode nối tiếp chuẩn xác, `source_timerange` không null, `speeds` và `canvases` refs đầy đủ.
+2. **Test Case 2 (Có Transition):** 2 clip + transition nối tiếp. Kiểm tra `is_overlap: true`, transition UUID có trong `materials.transitions` và nằm trong `extra_material_refs` của clip 0, start timecode của clip 1 không bị trừ âm.
+3. **Test Case 3 (Audio Track):** Có nhạc nền với `trimToVideoLength: true`. Kiểm tra track audio có duration bằng tổng video duration, source_timerange chuẩn.
+4. **Edge cases:** Báo lỗi hoặc ném ngoại lệ khi `clips.length === 0`, hoặc clip có duration <= 0.
 
 ---
 
-## 5. Checklist trước khi code thật
-- [ ] Lấy 1 file `draft_content.json` thật từ CapCut Desktop (dự án 3 clip + nhạc + transition) để đối chiếu field-by-field.
-- [ ] Xác nhận đơn vị timestamp trong `draft_meta_info.json`.
-- [ ] Viết `computeTimeline()` như 1 hàm riêng, cô lập công thức overlap.
-- [ ] Viết `capcutWriter.ts` (lớp ghi file qua `showDirectoryPicker`) tách biệt hoàn toàn khỏi `capcutDraft.ts`.
+## 5. Trạng thái Checklist
+- [x] Lấy file `draft_content.json` và `draft_meta_info.json` thật từ CapCut Desktop (`0831`) đối chiếu field-by-field.
+- [x] Xác nhận đơn vị timestamp là microseconds (µs).
+- [x] Làm rõ cơ chế overlap transition trong `draft_content.json`.
+- [ ] Xây dựng `src/lib/capcutDraft.types.ts` và `src/lib/capcutDraft.ts`.
+- [ ] Viết test Vitest `src/lib/capcutDraft.test.ts`.
